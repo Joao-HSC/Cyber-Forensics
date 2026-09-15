@@ -1,194 +1,147 @@
-import hashlib
+import argparse
 import mimetypes
 import os
-import sys
-import magic
 import shutil
+import magic
 
-CHUNK_SIGNATURES = {
-    b"IHDR": ("image/png", ".png", "PNG image with corrupted/tampered header"),
-    b"%PDF-": ("application/pdf", ".pdf", "PDF document with corrupted/shifted header"),
-    b"ftyp": ("video/mp4", ".mp4", "ISO Base Media / MP4 with non-zero offset"),
-    b"ID3": ("audio/mpeg", ".mp3", "MP3 audio container"),
-    b"PK\x03\x04": ("application/zip", ".zip", "ZIP/Office container with shifted header"),
-    b"7z\xbc\xaf\x27\x1c": ("application/x-7z-compressed", ".7z", "7-Zip container"),
+# Fallback carving rules: only applied if libmagic fails to identify the format
+CARVE_RULES = [
+    {
+        "marker": b"IHDR",
+        "max_offset": 64,
+        "mime": "image/png",
+        "ext": ".png",
+        "issue": "Corrupted PNG header (valid IHDR chunk located)",
+        "patch": (0, b"\x89PNG\r\n\x1a\n"),
+    },
+    {
+        "marker": b"%%EOF",
+        "tail_search": True,
+        "mime": "application/pdf",
+        "ext": ".pdf",
+        "issue": "PDF trailer found but header missing/corrupted",
+        "patch": None,
+    },
+    {
+        "marker": b"ftyp",
+        "max_offset": 32,
+        "mime": "video/mp4",
+        "ext": ".mp4",
+        "issue": "MP4 container with offset header",
+        "patch": None,
+    },
+]
+
+COMMON_EXT_MAP = {
+    "text/plain": {".txt", ".log", ".cfg", ".conf", ".ini", ".url", ".srt", ""},
+    "application/x-executable": {"", ".bin"},
+    "application/x-pie-executable": {"", ".bin"},
+    "application/x-sharedlib": {".so", ""},
+    "application/json": {".json", ".parts.json"},
+    "application/x-dosexec": {".exe", ".dll", ".sys"},
 }
 
-TRAILER_SIGNATURES = {
-    b"IEND\xaeB`\x82": ("image/png", ".png", "PNG image (confirmed by IEND EOF chunk)"),
-    b"%%EOF": ("application/pdf", ".pdf", "PDF document (confirmed by %%EOF trailer)"),
-}
-
-def get_hashes(filepath):
-    md5 = hashlib.md5()
-    sha256 = hashlib.sha256()
-    with open(filepath, "rb") as f:
-        while chunk := f.read(65536):
-            md5.update(chunk)
-            sha256.update(chunk)
-    return md5.hexdigest(), sha256.hexdigest()
-
-def deep_inspect_structure(filepath):
-    """
-    Scans the head and tail of the file for structural artifacts
-    when the primary magic signature is corrupted or altered.
-    """
-    file_size = os.path.getsize(filepath)
-    if file_size < 16:
+def carve_corrupted_file(filepath):
+    """Deep check executed ONLY when libmagic yields raw data/octet-stream."""
+    size = os.path.getsize(filepath)
+    if size < 16:
         return None
 
     with open(filepath, "rb") as f:
-        header = f.read(1024)
-        
-        # Check tail for standard EOF indicators
-        seek_tail = max(0, file_size - 1024)
+        head = f.read(2048)
+        seek_tail = max(0, size - 2048)
         f.seek(seek_tail)
-        tail = f.read(1024)
+        tail = f.read(2048)
 
-    # 1. Check for PNG chunk anomaly (like IHDR at offset 12 with tampered magic bytes)
-    if b"IHDR" in header[:64]:
-        ihdr_idx = header.find(b"IHDR")
-        if ihdr_idx in (12, 16):
-            return {
-                "mime": "image/png",
-                "exts": [".png"],
-                "desc": "PNG image (tampered magic bytes, valid IHDR chunk found)",
-                "tampered": True,
-                "fix_offset": 0,
-                "fix_bytes": b"\x89PNG\r\n\x1a\n"
-            }
-
-    # 2. Check for trailer markers
-    for marker, (mime, ext, desc) in TRAILER_SIGNATURES.items():
-        if marker in tail:
-            return {
-                "mime": mime,
-                "exts": [ext],
-                "desc": f"{desc} (header missing or invalid)",
-                "tampered": True,
-                "fix_offset": None,
-                "fix_bytes": None
-            }
-
-    # 3. Check for shifted or internal signatures within the first 1024 bytes
-    for marker, (mime, ext, desc) in CHUNK_SIGNATURES.items():
-        idx = header.find(marker)
-        if idx > 0:
-            return {
-                "mime": mime,
-                "exts": [ext],
-                "desc": f"{desc} (found at offset 0x{idx:02X})",
-                "tampered": True,
-                "fix_offset": None,
-                "fix_bytes": None
-            }
-
-    # 4. Check for embedded executables (PE/ELF) disguised with another header
-    if header.startswith(b"MZ") and b"PE\x00\x00" in header:
-        return {
-            "mime": "application/x-dosexec",
-            "exts": [".exe", ".dll", ".sys"],
-            "desc": "Windows PE executable",
-            "tampered": False,
-            "fix_offset": None,
-            "fix_bytes": None
-        }
-
+    for rule in CARVE_RULES:
+        if rule.get("tail_search"):
+            if rule["marker"] in tail:
+                return rule
+        else:
+            idx = head.find(rule["marker"])
+            if idx != -1 and idx <= rule.get("max_offset", 1024):
+                return rule
     return None
 
-def analyze_file(filepath):
-    if not os.path.isfile(filepath):
-        print(f"Error: File '{filepath}' not found.")
-        return
-
-    ext = os.path.splitext(filepath)[1].lower()
-    file_size = os.path.getsize(filepath)
-
-    mime_detector = magic.Magic(mime=True)
-    desc_detector = magic.Magic()
-
-    detected_mime = mime_detector.from_file(filepath)
-    detected_desc = desc_detector.from_file(filepath)
-
-    is_tampered = False
-    fix_data = None
-    expected_extensions = []
-
-    # If libmagic fails or defaults to raw data, run deep structural analysis
-    if detected_mime == "application/octet-stream" or detected_desc == "data" or file_size < 128:
-        structural_result = deep_inspect_structure(filepath)
-        if structural_result:
-            detected_mime = structural_result["mime"]
-            detected_desc = structural_result["desc"]
-            expected_extensions = structural_result["exts"]
-            is_tampered = structural_result["tampered"]
-            fix_data = structural_result
-    else:
-        expected_extensions = mimetypes.guess_all_extensions(detected_mime)
-
-    # Common forensic MIME aliases
-    overrides = {
-        "text/plain": [".txt", ".log", ".cfg", ".conf", ".ini", ""],
-        "application/x-executable": ["", ".bin"],
-        "application/x-pie-executable": ["", ".bin"],
-        "application/x-sharedlib": [".so", ""],
-    }
-    valid_exts = set(expected_extensions).union(overrides.get(detected_mime, []))
-
-    md5_hash, sha256_hash = get_hashes(filepath)
-
-    print(f"Target:        {os.path.abspath(filepath)}")
-    print(f"Size:          {file_size} bytes")
-    print(f"Declared Ext:  {ext if ext else '(None)'}")
-    print(f"MIME Type:     {detected_mime}")
-    print(f"Description:   {detected_desc}")
-    print(f"MD5:           {md5_hash}")
-    print(f"SHA256:        {sha256_hash}")
-
-    if is_tampered:
-        print("\n[CRITICAL FORENSIC ALERT]")
-        print(" -> File header has been intentionally altered, disguised, or corrupted.")
-        if fix_data and fix_data.get("fix_bytes") is not None:
-            print(f" -> Remediation available: overwrite offset {fix_data['fix_offset']} with {fix_data['fix_bytes']!r}")
-            print(f" -> Run with '--fix' flag to repair this artifact.")
-    elif valid_exts and ext not in valid_exts:
-        print(f"\nALERT: Extension mismatch. Expected one of: {sorted(list(valid_exts))}")
-    else:
-        print("\nStatus: Normal / Consistent.")
-
-def repair_file(filepath):
-    structural_result = deep_inspect_structure(filepath)
-    if not structural_result or structural_result.get("fix_bytes") is None:
-        print("Error: No automated fix pattern identified for this artifact.")
-        return
-
-    offset = structural_result["fix_offset"]
-    fix_bytes = structural_result["fix_bytes"]
-    target_ext = structural_result["exts"][0]
-
-    # Generate a clean output path without modifying the original
+def recover_evidence(filepath, target_ext, patch=None):
     base, _ = os.path.splitext(filepath)
-    output_path = f"{base}_recovered{target_ext}"
+    out_path = f"{base}_recovered{target_ext}"
+    shutil.copy2(filepath, out_path)
 
-    # Duplicate evidence first, then patch the copy
-    shutil.copy2(filepath, output_path)
+    if patch:
+        offset, patch_bytes = patch
+        with open(out_path, "r+b") as f:
+            f.seek(offset)
+            f.write(patch_bytes)
+    return os.path.basename(out_path)
 
-    with open(output_path, "r+b") as f:
-        f.seek(offset)
-        f.write(fix_bytes)
+def inspect_directory(target_path, do_fix=False):
+    mime_engine = magic.Magic(mime=True)
+    files_to_check = []
 
-    print(f"Original file left untouched: {filepath}")
-    print(f"Forensic copy repaired ->    {output_path}")
+    if os.path.isfile(target_path):
+        files_to_check = [target_path]
+    else:
+        for root, _, files in os.walk(target_path):
+            for f in sorted(files):
+                if "_recovered" not in f:
+                    files_to_check.append(os.path.join(root, f))
+
+    header = f"{'FILENAME':<35} {'DECLARED':<10} {'ACTUAL':<10} {'ISSUE':<40} {'RECOVERED' if do_fix else ''}"
+    print("\n" + header)
+    print("-" * (len(header) + 15))
+
+    for path in files_to_check:
+        if os.path.getsize(path) == 0:
+            continue
+
+        ext = os.path.splitext(path)[1].lower()
+        try:
+            detected_mime = mime_engine.from_file(path)
+        except Exception:
+            continue
+
+        issue = None
+        target_ext = ""
+        patch = None
+
+        # Scenario 1: libmagic recognized the structure cleanly
+        if detected_mime not in ("application/octet-stream", "data"):
+            known_exts = set(mimetypes.guess_all_extensions(detected_mime)).union(
+                COMMON_EXT_MAP.get(detected_mime, set())
+            )
+            target_ext = mimetypes.guess_extension(detected_mime) or ""
+
+            # Check for pure extension disguise (e.g. .mp4 named as .txt)
+            if known_exts and ext not in known_exts:
+                issue = f"Extension mismatch ({detected_mime})"
+
+        # Scenario 2: libmagic could not recognize it -> Header tampered or raw binary
+        else:
+            carved = carve_corrupted_file(path)
+            if carved:
+                issue = carved["issue"]
+                target_ext = carved["ext"]
+                patch = carved["patch"]
+
+        if not issue:
+            continue
+
+        recovered_str = ""
+        if do_fix:
+            out_ext = target_ext if target_ext else ".bin"
+            recovered_str = recover_evidence(path, out_ext, patch)
+
+        fname = os.path.basename(path)
+        if len(fname) > 33:
+            fname = fname[:30] + "..."
+
+        print(f"{fname:<35} {ext if ext else '(none)':<10} {target_ext:<10} {issue:<40} {recovered_str}")
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print("Usage: python file_type_detector.py [--fix] <file>")
-        sys.exit(1)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("target", help="File or folder to audit")
+    parser.add_argument("--fix", action="store_true", help="Carve and generate recovered copies")
+    args = parser.parse_args()
 
-    if sys.argv[1] == "--fix":
-        if len(sys.argv) < 3:
-            print("Specify file to fix: python file_type_detector.py --fix <file>")
-            sys.exit(1)
-        repair_file(sys.argv[2])
-    else:
-        analyze_file(sys.argv[1])
+    inspect_directory(args.target, do_fix=args.fix)
