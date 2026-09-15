@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+
+	<meta http-equiv="X-UA-Compatible" content="IE=edge">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>
+				Técnico Lisboa - Login
+	</title>
+	<meta name="author" content="">
+	<meta name="description" content="">
+	<meta name="keywords" content="">
+
+	<!-- Favicon -->
+	<link rel="shortcut icon" href="https://static.tecnico.ulisboa.pt/favicon.png" type="image/png">
+	<link rel="apple-touch-icon-precomposed" sizes="180x180" href="https://static.tecnico.ulisboa.pt/apple-touch-icon-180x180-precomposed.png">
+	<link rel="apple-touch-icon-precomposed" href="https://static.tecnico.ulisboa.pt/apple-touch-icon-144x144-precomposed.png">
+
+	<!-- Google web fonts -->
+	<link href="assets/fonts.css" rel="stylesheet" type="text/css">
+
+	<link rel="stylesheet" href="assets/cas.min.css">
+</head>
+
+<body>
+
+	<div id="bg" style="background-image: url(//static.tecnico.ulisboa.pt/projects/tecnico-id/bg-01-blur.jpg); background-size:cover; background-repeat:no-repeat;"></div>
+
+	<!-- Page Container -->
+	<div class="center-container container-sm">
+		<header>
+			<h1 class="title"><a href="/cas/login" tabindex="1">Técnico Lisboa - Login</a></h1>
+		</header>
+
+		<main>
+
+	<nav id="autenticacao">
+		<ul>
+			<li class="selection-box">
+				Authentication Method: <span class="selection-selectedOption">Técnico ID</span>
+			<i class="icon-down-open">&nbsp;</i>
+			<ul class="selection-options">
+				<li data-toggle-selection="istid"><a>Técnico ID</a></li>
+				<li data-toggle-selection="kerberos"><a>Kerberos</a></li>
+				<li data-toggle-selection="cartaocidadao"><a>Citizen Card</a></li>
+
+				</ul>
+			</li>
+		</ul>
+	</nav>
+
+
+<form id="credential" action="/cas/login" method="post">
+	<!-- Técnico ID -->
+	<fieldset data-selection="istid" style="display: inherit;">
+		<input id="username" name="username" autofocus="autofocus" placeholder="Técnico ID" required="required" type="text" value="" size="10">
+
+		<input id="password" name="password" placeholder="Password" required="required" type="password" value="" size="25">
+
+		<p>By logging in you agree to the <a href="http://dsi.tecnico.ulisboa.pt/normas/" class="underline">rules</a> of Técnico computer services.</p>
+
+		<input type="submit" value="Login" class="button button-active button-wide" name="submit-istid" id="submit-istid" accesskey="t">
+	</fieldset>
+
+
+		<!-- KERBEROS -->
+		<fieldset data-selection="kerberos" style="display: none;">
+			<div class="container-fluid">
+				<div class="row">
+					<div class="col-xs-1">
+						<i class="icon-lock active"></i>
+					</div>
+					<div class="col-xs-11">
+						<p>
+							Requirements for
+							<a href="https://suporte.dsi.tecnico.ulisboa.pt/categorias/autenticacao-e-acesso/" class="underline">
+								Kerberos authentication
+							</a>:
+						</p>
+						<ul class="block">
+							<li><span class="icon-right-open-mini"></span>working Kerberos support on your operating system</li>
+							<li><span class="icon-right-open-mini"></span>previously acquired TGT</li>
+						</ul>
+					</div>
+				</div>
+			</div>
+			<p>By logging in you agree to the <a href="http://dsi.tecnico.ulisboa.pt/normas/" class="underline">rules</a> of Técnico computer services.</p>
+			<input id="submit-kerberos" name="submit-kerberos" type="button" class="button button-active button-wide" value="Continue" accesskey="k" autofocus="autofocus" onclick="document.querySelector('[data-toggle-selection=\'istid\']').click()">
+		</fieldset>
+
+		<!-- CARTÃO CIDADÃO -->
+		<fieldset data-selection="cartaocidadao" style="display: none;">
+			<div class="container-fluid">
+				<div class="row">
+					<div class="col-xs-2">
+						<span class="ccidadao"></span>
+					</div>
+					<div class="col-xs-10">
+						<p>
+							Requirements for
+							<a href="http://www.cartaodecidadao.pt/documentos/Manual_Cartao_de_Cidadao_v1.26.0.pdf" class="underline">
+								citizen card authentication
+							</a>:
+						</p>
+						<ul class="block">
+							<li><span class="icon-right-open-mini"></span>functional card reader</li>
+							<li><span class="icon-right-open-mini"></span>card introduced in the reader</li>
+						</ul>
+					</div>
+				</div>
+			</div>
+			<p>By logging in you agree to the <a href="http://dsi.tecnico.ulisboa.pt/normas/" class="underline">rules</a> of Técnico computer services.</p>
+			<input id="submit-ccidadao" name="submit-ccidadao" type="button" class="button button-active button-wide" value="Continue" accesskey="c" autofocus="autofocus" onclick="document.querySelector('[data-toggle-selection=\'istid\']').click()">
+		</fieldset>
+
+
+	<input type="hidden" name="lt" value="LT-17648-A1YpBbay5w9vbYndfCI4dFLM5Oy734-id.tecnico.ulisboa.pt">
+	<input type="hidden" name="execution" value="e2s1">
+	<input type="hidden" name="_eventId" value="submit">
+
+	<!-- Recuperar pass / Nao tenho ISTID -->
+	<ul class="secondary-actions">
+		<li>
+			<a href="https://id.tecnico.ulisboa.pt/password/recover.php?language=en">
+				Recover Password
+			</a>
+		</li>
+		<li>
+			<a href="https://suporte.dsi.tecnico.ulisboa.pt/faq/como-e-que-uma-pessoa-externa-ou-convidada-pode-ter-acesso-temporario-aos-servicos-informaticos">
+				I don't have a Técnico ID
+			</a>
+		</li>
+	</ul>
+</form>
+
+<script src="assets/cas.min.js"></script>
+
+
+		</main>
+
+		<footer>
+			<nav>
+				<ul>
+					<li><a href="/cas/security">Security</a></li>
+					<li><a href="https://suporte.dsi.tecnico.ulisboa.pt/categorias/autenticacao-e-acesso/">Support</a></li>
+						<li class="right"><a href="/cas/login?locale=pt" class="active icon-globe">Português</a></li>
+				</ul>
+			</nav>
+		</footer>
+
+		<span class="clearfix"></span>
+	</div>
+
+</body></html>

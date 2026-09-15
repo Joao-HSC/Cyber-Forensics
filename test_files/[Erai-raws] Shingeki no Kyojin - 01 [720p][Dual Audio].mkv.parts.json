@@ -1,0 +1,35 @@
+{
+  "artifact_mtime": "2026-08-25T13:28:00+01:00",
+  "files": [
+    {
+      "name": "[Erai-raws] Shingeki no Kyojin - 01 [720p][Dual Audio].mkv.part01",
+      "offset": 0,
+      "sha256": "dc91370f60fad62f8ed25c4531df84b6c84d3595e250cd200ba6645d8e79ea58",
+      "size": 1552233616
+    },
+    {
+      "name": "[Erai-raws] Shingeki no Kyojin - 01 [720p][Dual Audio].mkv.part02",
+      "offset": 1552233616,
+      "sha256": "3d076262df72c96c069b64b4407a3a58b743c93453c2f9f0bcb5367088f3b424",
+      "size": 1552233616
+    },
+    {
+      "name": "[Erai-raws] Shingeki no Kyojin - 01 [720p][Dual Audio].mkv.part03",
+      "offset": 3104467232,
+      "sha256": "8f1771479ada2acf649b05c3b4b62e1a157a07e6b183a2abe379d152e3cb531e",
+      "size": 1552233616
+    },
+    {
+      "name": "[Erai-raws] Shingeki no Kyojin - 01 [720p][Dual Audio].mkv.part04",
+      "offset": 4656700848,
+      "sha256": "71880aaf10eb72c986c6a5255b7273efc6e00405fb48da33f17ef54e249386c1",
+      "size": 1552233616
+    }
+  ],
+  "format": "binary-split-parts",
+  "original_name": "[Erai-raws] Shingeki no Kyojin - 01 [720p][Dual Audio].mkv",
+  "parts": 4,
+  "sha256": "9de6f912cfaffcb8d68f4c2db39dff1e22994c92e56e8daac70e542caf67b9b7",
+  "size": 6208934464,
+  "version": 1
+}
